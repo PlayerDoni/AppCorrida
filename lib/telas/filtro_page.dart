@@ -18,6 +18,14 @@ class _TelaFiltroState extends State<TelaFiltro> {
   String _tipoSelecionado = 'Todos';
   String _ordenacaoSelecionada = 'Data (Mais recente)';
 
+  final List<String> _tiposAtividade = ['Todos', 'Corrida', 'Caminhada'];
+  final List<String> _ordenacoes = [
+    'Data (Mais recente)',
+    'Data (Mais antiga)',
+    'Distância (Maior)',
+    'Distância (Menor)',
+  ];
+
   @override
   void initState() {
     super.initState();
@@ -42,6 +50,43 @@ class _TelaFiltroState extends State<TelaFiltro> {
         }
       });
     }
+  }
+
+  double? _parseDistancia(String valor) {
+    if (valor.trim().isEmpty) return null;
+    return double.tryParse(valor.replaceAll(',', '.'));
+  }
+
+  void _aplicarFiltros() {
+    String tipoOrdenacao = _ordenacaoSelecionada.contains('Data')
+        ? 'Data'
+        : 'Distância';
+
+    // Montando o mapa limpo e padronizado
+    final filtros = {
+      'descricao': _descricaoController.text.trim().isEmpty ? null : _descricaoController.text.trim(),
+      'tipo': _tipoSelecionado,
+      'dataInicial': _dataInicial,
+      'dataFinal': _dataFinal,
+      'distanciaMin': _parseDistancia(_distanciaMinController.text),
+      'distanciaMax': _parseDistancia(_distanciaMaxController.text),
+      'ordenacao': _ordenacaoSelecionada,
+      'tipoOrdenacao': tipoOrdenacao,
+    };
+
+    Navigator.pop(context, filtros);
+  }
+
+  void _limparFiltros() {
+    setState(() {
+      _descricaoController.clear();
+      _distanciaMinController.clear();
+      _distanciaMaxController.clear();
+      _tipoSelecionado = 'Todos';
+      _dataInicial = null;
+      _dataFinal = null;
+      _ordenacaoSelecionada = 'Data (Mais recente)';
+    });
   }
 
   @override
@@ -70,12 +115,11 @@ class _TelaFiltroState extends State<TelaFiltro> {
             ),
             const SizedBox(height: 16),
 
-
             DropdownButtonFormField<String>(
               value: _tipoSelecionado,
               style: estiloFonte,
               dropdownColor: Colors.white,
-              items: ['Todos', 'Corrida', 'Caminhada']
+              items: _tiposAtividade
                   .map((tipo) => DropdownMenuItem(
                 value: tipo,
                 child: Text(tipo, style: estiloFonte),
@@ -93,7 +137,6 @@ class _TelaFiltroState extends State<TelaFiltro> {
               ),
             ),
             const SizedBox(height: 16),
-
 
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -131,7 +174,6 @@ class _TelaFiltroState extends State<TelaFiltro> {
             ),
             const SizedBox(height: 16),
 
-
             TextField(
               controller: _distanciaMinController,
               style: estiloFonte,
@@ -143,7 +185,6 @@ class _TelaFiltroState extends State<TelaFiltro> {
               keyboardType: TextInputType.numberWithOptions(decimal: true),
             ),
             const SizedBox(height: 16),
-
 
             TextField(
               controller: _distanciaMaxController,
@@ -157,17 +198,12 @@ class _TelaFiltroState extends State<TelaFiltro> {
             ),
             const SizedBox(height: 16),
 
-
             DropdownButtonFormField<String>(
               value: _ordenacaoSelecionada,
               style: estiloFonte,
               dropdownColor: Colors.white,
-              items: [
-                'Data (Mais recente)',
-                'Data (Mais antiga)',
-                'Distância (Maior)',
-                'Distância (Menor)',
-              ].map((ordem) => DropdownMenuItem(
+              items: _ordenacoes
+                  .map((ordem) => DropdownMenuItem(
                 value: ordem,
                 child: Text(ordem, style: estiloFonte),
               ))
@@ -189,22 +225,7 @@ class _TelaFiltroState extends State<TelaFiltro> {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 ElevatedButton.icon(
-                  onPressed: () {
-                    String tipoOrdenacao = _ordenacaoSelecionada.contains('Data')
-                        ? 'Data'
-                        : 'Distância';
-
-                    Navigator.pop(context, {
-                      'descricao': _descricaoController.text,
-                      'tipo': _tipoSelecionado,
-                      'dataInicial': _dataInicial,
-                      'dataFinal': _dataFinal,
-                      'distanciaMin': _distanciaMinController.text,
-                      'distanciaMax': _distanciaMaxController.text,
-                      'ordenacao': _ordenacaoSelecionada,
-                      'tipoOrdenacao': tipoOrdenacao,
-                    });
-                  },
+                  onPressed: _aplicarFiltros,
                   icon: const Icon(Icons.check, size: 18, color: Colors.black),
                   label: const Text(
                     'Aplicar Filtros',
@@ -217,17 +238,7 @@ class _TelaFiltroState extends State<TelaFiltro> {
                 ),
                 const SizedBox(width: 12),
                 TextButton.icon(
-                  onPressed: () {
-                    setState(() {
-                      _descricaoController.clear();
-                      _distanciaMinController.clear();
-                      _distanciaMaxController.clear();
-                      _tipoSelecionado = 'Todos';
-                      _dataInicial = null;
-                      _dataFinal = null;
-                      _ordenacaoSelecionada = 'Data (Mais recente)';
-                    });
-                  },
+                  onPressed: _limparFiltros,
                   icon: const Icon(Icons.clear, size: 18, color: Colors.black),
                   label: const Text(
                     'Limpar Filtros',

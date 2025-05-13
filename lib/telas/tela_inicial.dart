@@ -1,9 +1,11 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:geosprint/telas/nova_corrida.dart';
 import 'package:geosprint/telas/filtro_page.dart';
 import 'package:geosprint/models/corrida.dart';
 import 'package:geosprint/dados/dados_corridas.dart';
 import 'package:intl/intl.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class TelaInicial extends StatefulWidget {
   const TelaInicial({super.key});
@@ -14,6 +16,12 @@ class TelaInicial extends StatefulWidget {
 
 class _TelaInicialState extends State<TelaInicial> {
   List<Corrida> listaFiltradaCorridas = List.from(listaCorridas);
+
+  @override
+  void initState() {
+    super.initState();
+    _carregarCorridas();
+  }
 
   void _abrirNovaCorrida() async {
     final resultado = await Navigator.push(
@@ -27,6 +35,7 @@ class _TelaInicialState extends State<TelaInicial> {
       setState(() {
         listaFiltradaCorridas = List.from(listaCorridas);
       });
+      _salvarCorridas();
     }
   }
 
@@ -103,6 +112,7 @@ class _TelaInicialState extends State<TelaInicial> {
                 listaCorridas.remove(corrida);
                 listaFiltradaCorridas.removeAt(index);
               });
+              _salvarCorridas();
               Navigator.pop(context);
             },
             child: const Text('Excluir', style: TextStyle(color: Colors.red)),
@@ -145,6 +155,7 @@ class _TelaInicialState extends State<TelaInicial> {
               setState(() {
                 corrida.descricao = controller.text;
               });
+              _salvarCorridas();
               Navigator.pop(context);
             },
             child: const Text('Salvar'),
@@ -156,6 +167,29 @@ class _TelaInicialState extends State<TelaInicial> {
 
   String formatarDataHora(DateTime data) {
     return DateFormat('dd/MM/yyyy • HH:mm').format(data);
+  }
+
+  Future<void> _salvarCorridas() async {
+    final prefs = await SharedPreferences.getInstance();
+    final List<String> corridasJson = listaCorridas.map((corrida) {
+      final json = corrida.toJson();
+      return jsonEncode(json);
+    }).toList();
+    await prefs.setStringList('corridas', corridasJson);
+  }
+
+  Future<void> _carregarCorridas() async {
+    final prefs = await SharedPreferences.getInstance();
+    final List<String>? corridasJson = prefs.getStringList('corridas');
+    if (corridasJson != null) {
+      setState(() {
+        listaCorridas = corridasJson.map((json) {
+          final Map<String, dynamic> corridaMap = jsonDecode(json);
+          return Corrida.fromJson(corridaMap);
+        }).toList();
+        listaFiltradaCorridas = List.from(listaCorridas);
+      });
+    }
   }
 
   @override
