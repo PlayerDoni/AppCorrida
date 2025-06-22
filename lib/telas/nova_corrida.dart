@@ -87,6 +87,7 @@ class _NovaCorridaState extends State<NovaCorrida> with TickerProviderStateMixin
       }
     });
 
+
     setState(() {
       _monitorandoLocalizacao = true;
       _calculoDistancia = 0;
