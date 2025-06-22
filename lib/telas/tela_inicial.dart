@@ -55,25 +55,10 @@ class _TelaInicialState extends State<TelaInicial> {
           final distanciaMax = resultado['distanciaMax'];
           final descricaoFiltro = (resultado['descricao'] ?? '').toLowerCase();
 
-          bool correspondeTipo = tipoSelecionado == null ||
-              tipoSelecionado == 'Todos' ||
-              corrida.tipo == tipoSelecionado;
-
-          bool correspondeData = true;
-          if (dataInicial != null && dataFinal != null) {
-            correspondeData = corrida.data.isAfter(dataInicial.subtract(const Duration(days: 1))) &&
-                corrida.data.isBefore(dataFinal.add(const Duration(days: 1)));
-          }
-
-          bool correspondeDistancia = true;
-          if (distanciaMin != null && distanciaMax != null) {
-            correspondeDistancia = corrida.distancia >= distanciaMin && corrida.distancia <= distanciaMax;
-          }
-
-          bool correspondeDescricao = descricaoFiltro.isEmpty ||
-              corrida.descricao.toLowerCase().contains(descricaoFiltro);
-
-          return correspondeTipo && correspondeData && correspondeDistancia && correspondeDescricao;
+          return _correspondeTipo(corrida, tipoSelecionado) &&
+              _correspondeData(corrida, dataInicial, dataFinal) &&
+              _correspondeDistancia(corrida, distanciaMin, distanciaMax) &&
+              _correspondeDescricao(corrida, descricaoFiltro);
         }).toList();
 
         final tipoOrdenacao = resultado['tipoOrdenacao'];
@@ -92,6 +77,28 @@ class _TelaInicialState extends State<TelaInicial> {
         }
       });
     }
+  }
+
+  bool _correspondeTipo(Corrida corrida, String? tipoSelecionado) {
+    return tipoSelecionado == null ||
+        tipoSelecionado == 'Todos' ||
+        corrida.tipo == tipoSelecionado;
+  }
+
+  bool _correspondeData(Corrida corrida, DateTime? dataInicial, DateTime? dataFinal) {
+    if (dataInicial == null || dataFinal == null) return true;
+    return corrida.data.isAfter(dataInicial.subtract(const Duration(days: 1))) &&
+        corrida.data.isBefore(dataFinal.add(const Duration(days: 1)));
+  }
+
+  bool _correspondeDistancia(Corrida corrida, double? min, double? max) {
+    if (min == null || max == null) return true;
+    return corrida.distancia >= min && corrida.distancia <= max;
+  }
+
+  bool _correspondeDescricao(Corrida corrida, String descricaoFiltro) {
+    return descricaoFiltro.isEmpty ||
+        corrida.descricao.toLowerCase().contains(descricaoFiltro);
   }
 
   void _excluirCorrida(int index) {
@@ -125,43 +132,57 @@ class _TelaInicialState extends State<TelaInicial> {
   void _editarDescricao(int index) {
     final corrida = listaFiltradaCorridas[index];
     final TextEditingController controller = TextEditingController(text: corrida.descricao);
+    bool textoAlterado = false;
 
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Editar Descrição'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: controller,
-              decoration: const InputDecoration(
-                hintText: 'Digite a nova descrição',
-                hintStyle: TextStyle(fontSize: 16),
-                contentPadding: EdgeInsets.only(bottom: 6),
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setStateDialog) {
+            return AlertDialog(
+              title: const Text('Editar Descrição'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    controller: controller,
+                    decoration: const InputDecoration(
+                      hintText: 'Digite a nova descrição',
+                      hintStyle: TextStyle(fontSize: 16),
+                      contentPadding: EdgeInsets.only(bottom: 6),
+                    ),
+                    style: const TextStyle(fontSize: 16),
+                    onChanged: (valor) {
+                      setStateDialog(() {
+                        textoAlterado = valor.trim().isNotEmpty && valor != corrida.descricao;
+                      });
+                    },
+                  ),
+                  const Divider(thickness: 1),
+                ],
               ),
-              style: const TextStyle(fontSize: 16),
-            ),
-            const Divider(thickness: 1),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancelar'),
-          ),
-          TextButton(
-            onPressed: () {
-              setState(() {
-                corrida.descricao = controller.text;
-              });
-              _salvarCorridas();
-              Navigator.pop(context);
-            },
-            child: const Text('Salvar'),
-          ),
-        ],
-      ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Cancelar'),
+                ),
+                TextButton(
+                  onPressed: textoAlterado
+                      ? () {
+                    setState(() {
+                      corrida.descricao = controller.text;
+                    });
+                    _salvarCorridas();
+                    Navigator.pop(context);
+                  }
+                      : null,
+                  child: const Text('Salvar'),
+                ),
+              ],
+            );
+          },
+        );
+      },
     );
   }
 
@@ -249,7 +270,7 @@ class _TelaInicialState extends State<TelaInicial> {
                   style: const TextStyle(fontSize: 16),
                 ),
                 Text(
-                  'Distância: ${corrida.distancia.toStringAsFixed(2)} km',
+                  'Distância: ${corrida.distancia.toStringAsFixed(0)} m',
                   style: const TextStyle(fontSize: 16),
                 ),
                 Text(
@@ -262,11 +283,13 @@ class _TelaInicialState extends State<TelaInicial> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 IconButton(
-                  icon: const Icon(Icons.edit, color: Color(0xFF00FF00)),
+                  icon: const Icon(Icons.edit, color: Colors.blue),
+                  tooltip: 'Editar Descrição',
                   onPressed: () => _editarDescricao(index),
                 ),
                 IconButton(
                   icon: const Icon(Icons.delete, color: Colors.red),
+                  tooltip: 'Excluir Atividade',
                   onPressed: () => _excluirCorrida(index),
                 ),
               ],
@@ -277,7 +300,8 @@ class _TelaInicialState extends State<TelaInicial> {
       floatingActionButton: FloatingActionButton(
         backgroundColor: const Color(0xFF38B6FF),
         onPressed: _abrirNovaCorrida,
-        child: const Icon(Icons.add, color: Colors.black),
+        tooltip: 'Nova Corrida',
+        child: const Icon(Icons.add),
       ),
     );
   }

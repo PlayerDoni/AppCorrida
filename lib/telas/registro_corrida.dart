@@ -42,7 +42,7 @@ class _RegistroCorridaState extends State<RegistroCorrida> {
       data: dataHora,
       hora: dataHora,
       tempo: widget.tempo,
-      distancia: widget.distancia,
+      distancia: widget.distancia.round().toDouble(), // salva arredondado como double inteiro (ex: 120.0)
     );
 
     listaCorridas.add(corrida);
@@ -53,7 +53,7 @@ class _RegistroCorridaState extends State<RegistroCorrida> {
     print('Data: ${DateFormat('dd/MM/yyyy', 'pt_BR').format(corrida.data)}');
     print('Hora: ${DateFormat('HH:mm:ss').format(corrida.hora)}');
     print('Tempo: ${corrida.tempo}');
-    print('Distância: ${corrida.distancia} km');
+    print('Distância: ${corrida.distancia} m');
     print('Corridas atuais: $listaCorridas');
 
     ScaffoldMessenger.of(context).showSnackBar(
@@ -66,8 +66,12 @@ class _RegistroCorridaState extends State<RegistroCorrida> {
   @override
   Widget build(BuildContext context) {
     const estiloTexto = TextStyle(fontSize: 20, color: Colors.black);
+
     String tempoFormatado =
         "${widget.tempo.inMinutes.toString().padLeft(2, '0')}:${(widget.tempo.inSeconds % 60).toString().padLeft(2, '0')}";
+
+    String distanciaFormatada = widget.distancia.round().toString();
+
     String dataFormatada = DateFormat('dd/MM/yyyy', 'pt_BR').format(dataHora);
     String horaFormatada = DateFormat('HH:mm:ss').format(dataHora);
 
@@ -92,7 +96,7 @@ class _RegistroCorridaState extends State<RegistroCorrida> {
             ),
             const SizedBox(height: 24),
             Text('Tempo: $tempoFormatado', style: estiloTexto),
-            Text('Distância: ${widget.distancia.toStringAsFixed(2)} km', style: estiloTexto),
+            Text('Distância: $distanciaFormatada m', style: estiloTexto),
             const SizedBox(height: 24),
             TextField(
               controller: descricaoController,

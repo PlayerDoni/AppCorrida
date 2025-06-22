@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 
 class TelaFiltro extends StatefulWidget {
@@ -9,244 +10,270 @@ class TelaFiltro extends StatefulWidget {
 }
 
 class _TelaFiltroState extends State<TelaFiltro> {
-  final TextEditingController _descricaoController = TextEditingController();
-  final TextEditingController _distanciaMinController = TextEditingController();
-  final TextEditingController _distanciaMaxController = TextEditingController();
+  final TextEditingController descricaoController = TextEditingController();
+  final TextEditingController distanciaMinController = TextEditingController();
+  final TextEditingController distanciaMaxController = TextEditingController();
 
-  DateTime? _dataInicial;
-  DateTime? _dataFinal;
-  String _tipoSelecionado = 'Todos';
-  String _ordenacaoSelecionada = 'Data (Mais recente)';
+  String? tipoSelecionado = 'Todos';
+  DateTime? dataInicial;
+  DateTime? dataFinal;
+  double? distanciaMin;
+  double? distanciaMax;
+  String tipoOrdenacao = 'Data';
+  String ordenacao = 'Data (Mais recente)';
 
-  final List<String> _tiposAtividade = ['Todos', 'Corrida', 'Caminhada'];
-  final List<String> _ordenacoes = [
-    'Data (Mais recente)',
-    'Data (Mais antiga)',
-    'Distância (Maior)',
-    'Distância (Menor)',
-  ];
-
-  @override
-  void initState() {
-    super.initState();
-    Intl.defaultLocale = 'pt_BR';
-  }
-
-  Future<void> _selecionarData(BuildContext context, bool isInicial) async {
-    final DateTime? dataSelecionada = await showDatePicker(
+  Future<void> _selecionarDataInicial(BuildContext context) async {
+    final DateTime? picked = await showDatePicker(
       context: context,
-      initialDate: DateTime.now(),
+      initialDate: dataInicial ?? DateTime.now(),
       firstDate: DateTime(2020),
-      lastDate: DateTime(2100),
-      locale: const Locale('pt', 'BR'),
+      lastDate: DateTime.now(),
     );
-
-    if (dataSelecionada != null) {
+    if (picked != null && picked != dataInicial) {
       setState(() {
-        if (isInicial) {
-          _dataInicial = dataSelecionada;
-        } else {
-          _dataFinal = dataSelecionada;
-        }
+        dataInicial = picked;
       });
     }
   }
 
-  double? _parseDistancia(String valor) {
-    if (valor.trim().isEmpty) return null;
-    return double.tryParse(valor.replaceAll(',', '.'));
+  Future<void> _selecionarDataFinal(BuildContext context) async {
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: dataFinal ?? DateTime.now(),
+      firstDate: DateTime(2020),
+      lastDate: DateTime.now(),
+    );
+    if (picked != null && picked != dataFinal) {
+      setState(() {
+        dataFinal = picked;
+      });
+    }
   }
 
-  void _aplicarFiltros() {
-    String tipoOrdenacao = _ordenacaoSelecionada.contains('Data')
-        ? 'Data'
-        : 'Distância';
-
-    // Montando o mapa limpo e padronizado
-    final filtros = {
-      'descricao': _descricaoController.text.trim().isEmpty ? null : _descricaoController.text.trim(),
-      'tipo': _tipoSelecionado,
-      'dataInicial': _dataInicial,
-      'dataFinal': _dataFinal,
-      'distanciaMin': _parseDistancia(_distanciaMinController.text),
-      'distanciaMax': _parseDistancia(_distanciaMaxController.text),
-      'ordenacao': _ordenacaoSelecionada,
-      'tipoOrdenacao': tipoOrdenacao,
-    };
-
-    Navigator.pop(context, filtros);
+  String formatarData(DateTime? data) {
+    if (data == null) return 'Selecionar data';
+    return DateFormat('dd/MM/yyyy').format(data);
   }
 
   void _limparFiltros() {
     setState(() {
-      _descricaoController.clear();
-      _distanciaMinController.clear();
-      _distanciaMaxController.clear();
-      _tipoSelecionado = 'Todos';
-      _dataInicial = null;
-      _dataFinal = null;
-      _ordenacaoSelecionada = 'Data (Mais recente)';
+      descricaoController.clear();
+      distanciaMinController.clear();
+      distanciaMaxController.clear();
+      tipoSelecionado = 'Todos';
+      dataInicial = null;
+      dataFinal = null;
+      distanciaMin = null;
+      distanciaMax = null;
+      tipoOrdenacao = 'Data';
+      ordenacao = 'Data (Mais recente)';
+    });
+  }
+
+  void _aplicarFiltros() {
+    if (dataInicial != null && dataFinal != null && dataInicial!.isAfter(dataFinal!)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('A data inicial deve ser anterior à data final')),
+      );
+      return;
+    }
+    if (distanciaMin != null && distanciaMax != null && distanciaMin! > distanciaMax!) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Distância mínima não pode ser maior que máxima')),
+      );
+      return;
+    }
+
+    Navigator.pop(context, {
+      'descricao': descricaoController.text.trim(),
+      'tipo': tipoSelecionado,
+      'dataInicial': dataInicial,
+      'dataFinal': dataFinal,
+      'distanciaMin': distanciaMin,
+      'distanciaMax': distanciaMax,
+      'tipoOrdenacao': tipoOrdenacao,
+      'ordenacao': ordenacao,
     });
   }
 
   @override
-  Widget build(BuildContext context) {
-    final estiloFonte = const TextStyle(fontSize: 16, color: Colors.black);
+  void dispose() {
+    descricaoController.dispose();
+    distanciaMinController.dispose();
+    distanciaMaxController.dispose();
+    super.dispose();
+  }
 
+  @override
+  Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Filtrar atividades'),
+        title: const Text('Filtros'),
         backgroundColor: const Color(0xFF38B6FF),
-        foregroundColor: Colors.black,
+        centerTitle: true,
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-
+            const Text('Descrição:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+            const SizedBox(height: 6),
             TextField(
-              controller: _descricaoController,
-              style: estiloFonte,
+              controller: descricaoController,
               decoration: const InputDecoration(
-                labelText: 'Buscar por descrição',
-                labelStyle: TextStyle(color: Colors.black),
                 border: OutlineInputBorder(),
-              ),
-            ),
-            const SizedBox(height: 16),
-
-            DropdownButtonFormField<String>(
-              value: _tipoSelecionado,
-              style: estiloFonte,
-              dropdownColor: Colors.white,
-              items: _tiposAtividade
-                  .map((tipo) => DropdownMenuItem(
-                value: tipo,
-                child: Text(tipo, style: estiloFonte),
-              ))
-                  .toList(),
-              onChanged: (value) {
-                setState(() {
-                  _tipoSelecionado = value!;
-                });
-              },
-              decoration: const InputDecoration(
-                labelText: 'Tipo de atividade',
-                labelStyle: TextStyle(color: Colors.black),
-                border: OutlineInputBorder(),
-              ),
-            ),
-            const SizedBox(height: 16),
-
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                OutlinedButton.icon(
-                  onPressed: () => _selecionarData(context, true),
-                  icon: const Icon(Icons.calendar_today, size: 18, color: Colors.black),
-                  label: Text(
-                    _dataInicial == null
-                        ? 'Data inicial'
-                        : DateFormat('dd/MM/yyyy').format(_dataInicial!),
-                    style: estiloFonte,
-                  ),
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    side: const BorderSide(color: Colors.grey),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                OutlinedButton.icon(
-                  onPressed: () => _selecionarData(context, false),
-                  icon: const Icon(Icons.calendar_today, size: 18, color: Colors.black),
-                  label: Text(
-                    _dataFinal == null
-                        ? 'Data final'
-                        : DateFormat('dd/MM/yyyy').format(_dataFinal!),
-                    style: estiloFonte,
-                  ),
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    side: const BorderSide(color: Colors.grey),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-
-            TextField(
-              controller: _distanciaMinController,
-              style: estiloFonte,
-              decoration: const InputDecoration(
-                labelText: 'Distância mínima (km)',
-                labelStyle: TextStyle(color: Colors.black),
-                border: OutlineInputBorder(),
-              ),
-              keyboardType: TextInputType.numberWithOptions(decimal: true),
-            ),
-            const SizedBox(height: 16),
-
-            TextField(
-              controller: _distanciaMaxController,
-              style: estiloFonte,
-              decoration: const InputDecoration(
-                labelText: 'Distância máxima (km)',
-                labelStyle: TextStyle(color: Colors.black),
-                border: OutlineInputBorder(),
-              ),
-              keyboardType: TextInputType.numberWithOptions(decimal: true),
-            ),
-            const SizedBox(height: 16),
-
-            DropdownButtonFormField<String>(
-              value: _ordenacaoSelecionada,
-              style: estiloFonte,
-              dropdownColor: Colors.white,
-              items: _ordenacoes
-                  .map((ordem) => DropdownMenuItem(
-                value: ordem,
-                child: Text(ordem, style: estiloFonte),
-              ))
-                  .toList(),
-              onChanged: (value) {
-                setState(() {
-                  _ordenacaoSelecionada = value!;
-                });
-              },
-              decoration: const InputDecoration(
-                labelText: 'Ordenar por',
-                labelStyle: TextStyle(color: Colors.black),
-                border: OutlineInputBorder(),
+                hintText: 'Filtrar por descrição',
               ),
             ),
             const SizedBox(height: 20),
 
+            const Text('Tipo de Atividade:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+            const SizedBox(height: 6),
+            DropdownButtonFormField<String>(
+              value: tipoSelecionado,
+              decoration: const InputDecoration(border: OutlineInputBorder()),
+              items: const [
+                DropdownMenuItem(value: 'Todos', child: Text('Todos')),
+                DropdownMenuItem(value: 'Corrida', child: Text('Corrida')),
+                DropdownMenuItem(value: 'Caminhada', child: Text('Caminhada')),
+              ],
+              onChanged: (valor) {
+                setState(() {
+                  tipoSelecionado = valor;
+                });
+              },
+            ),
+            const SizedBox(height: 20),
+
+            const Text('Intervalo de Data:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+            const SizedBox(height: 6),
             Row(
-              mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                ElevatedButton.icon(
-                  onPressed: _aplicarFiltros,
-                  icon: const Icon(Icons.check, size: 18, color: Colors.black),
-                  label: const Text(
-                    'Aplicar Filtros',
-                    style: TextStyle(fontSize: 14, color: Colors.black),
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF38B6FF),
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => _selecionarDataInicial(context),
+                    child: Text(formatarData(dataInicial)),
                   ),
                 ),
                 const SizedBox(width: 12),
-                TextButton.icon(
-                  onPressed: _limparFiltros,
-                  icon: const Icon(Icons.clear, size: 18, color: Colors.black),
-                  label: const Text(
-                    'Limpar Filtros',
-                    style: TextStyle(fontSize: 14, color: Colors.black),
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => _selecionarDataFinal(context),
+                    child: Text(formatarData(dataFinal)),
                   ),
                 ),
               ],
             ),
+            const SizedBox(height: 20),
+
+            const Text('Distância (metros):', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: distanciaMinController,
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    inputFormatters: [
+                      FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
+                    ],
+                    decoration: const InputDecoration(
+                      labelText: 'Mínima',
+                      border: OutlineInputBorder(),
+                    ),
+                    onChanged: (valor) {
+                      setState(() {
+                        distanciaMin = double.tryParse(valor);
+                      });
+                    },
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: TextField(
+                    controller: distanciaMaxController,
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    inputFormatters: [
+                      FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
+                    ],
+                    decoration: const InputDecoration(
+                      labelText: 'Máxima',
+                      border: OutlineInputBorder(),
+                    ),
+                    onChanged: (valor) {
+                      setState(() {
+                        distanciaMax = double.tryParse(valor);
+                      });
+                    },
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 20),
+
+            const Text('Ordenar por:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+            const SizedBox(height: 6),
+            DropdownButtonFormField<String>(
+              value: tipoOrdenacao,
+              decoration: const InputDecoration(border: OutlineInputBorder()),
+              items: const [
+                DropdownMenuItem(value: 'Data', child: Text('Data')),
+                DropdownMenuItem(value: 'Distância', child: Text('Distância')),
+              ],
+              onChanged: (valor) {
+                setState(() {
+                  tipoOrdenacao = valor ?? 'Data';
+                  if (tipoOrdenacao == 'Data') {
+                    ordenacao = 'Data (Mais recente)';
+                  } else if (tipoOrdenacao == 'Distância') {
+                    ordenacao = 'Distância (Maior)';
+                  }
+                });
+              },
+            ),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<String>(
+              value: ordenacao,
+              decoration: const InputDecoration(border: OutlineInputBorder()),
+              items: tipoOrdenacao == 'Data'
+                  ? const [
+                DropdownMenuItem(value: 'Data (Mais recente)', child: Text('Data (Mais recente)')),
+                DropdownMenuItem(value: 'Data (Mais antiga)', child: Text('Data (Mais antiga)')),
+              ]
+                  : const [
+                DropdownMenuItem(value: 'Distância (Maior)', child: Text('Distância (Maior)')),
+                DropdownMenuItem(value: 'Distância (Menor)', child: Text('Distância (Menor)')),
+              ],
+              onChanged: (valor) {
+                setState(() {
+                  ordenacao = valor ?? ordenacao;
+                });
+              },
+            ),
+            const SizedBox(height: 30),
+
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.grey,
+                    padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 14),
+                  ),
+                  onPressed: _limparFiltros,
+                  child: const Text('Limpar'),
+                ),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF38B6FF),
+                    padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 14),
+                  ),
+                  onPressed: _aplicarFiltros,
+                  child: const Text('Aplicar'),
+                ),
+              ],
+            )
           ],
         ),
       ),

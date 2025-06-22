@@ -1,5 +1,7 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
+import 'package:geolocator/geolocator.dart';
 import 'registro_corrida.dart';
 
 class NovaCorrida extends StatefulWidget {
@@ -11,10 +13,16 @@ class NovaCorrida extends StatefulWidget {
 
 class _NovaCorridaState extends State<NovaCorrida> with TickerProviderStateMixin {
   bool emAndamento = false;
-  double distancia = 0.0;
+  double distancia = 0.0; // distância em metros
   Duration tempo = Duration.zero;
   late Stopwatch cronometro;
   late final Ticker _ticker;
+
+  // === Variáveis do GPS ===
+  StreamSubscription<Position>? _subscription;
+  Position? _ultimaLocalizacaoConhecida;
+  double _calculoDistancia = 0;
+  bool _monitorandoLocalizacao = false;
 
   @override
   void initState() {
@@ -26,9 +34,87 @@ class _NovaCorridaState extends State<NovaCorrida> with TickerProviderStateMixin
   void _onTick(Duration elapsed) {
     setState(() {
       tempo = cronometro.elapsed;
-
     });
   }
+
+  // === Métodos do GPS ===
+  Future<void> _iniciarMonitoramento() async {
+    bool servicoHabilitado = await Geolocator.isLocationServiceEnabled();
+    if (!servicoHabilitado) {
+      await Geolocator.openLocationSettings();
+      return;
+    }
+
+    LocationPermission permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+      if (permission == LocationPermission.denied) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Permissão de localização negada!')),
+        );
+        return;
+      }
+    }
+
+    const LocationSettings locationSettings = LocationSettings(
+      accuracy: LocationAccuracy.best,
+      distanceFilter: 0,
+    );
+
+    _subscription = Geolocator.getPositionStream(locationSettings: locationSettings).listen((Position position) {
+      if (position.accuracy > 30) {
+        return;
+      }
+
+      if (_ultimaLocalizacaoConhecida != null) {
+        final distanciaIncremento = Geolocator.distanceBetween(
+          _ultimaLocalizacaoConhecida!.latitude,
+          _ultimaLocalizacaoConhecida!.longitude,
+          position.latitude,
+          position.longitude,
+        );
+
+        _ultimaLocalizacaoConhecida = position;
+
+        if (distanciaIncremento >= 0.5 && distanciaIncremento < 20) {
+          _calculoDistancia += distanciaIncremento;
+          setState(() {
+            distancia = _calculoDistancia;
+          });
+        }
+      } else {
+        _ultimaLocalizacaoConhecida = position;
+      }
+    });
+
+    setState(() {
+      _monitorandoLocalizacao = true;
+      _calculoDistancia = 0;
+      _ultimaLocalizacaoConhecida = null;
+      distancia = 0.0;
+    });
+  }
+
+  void _pararMonitoramento() {
+    _subscription?.cancel();
+    _subscription = null;
+    setState(() {
+      _monitorandoLocalizacao = false;
+    });
+  }
+
+  void _cancelarMonitoramento() {
+    _subscription?.cancel();
+    _subscription = null;
+    setState(() {
+      _monitorandoLocalizacao = false;
+      _calculoDistancia = 0;
+      _ultimaLocalizacaoConhecida = null;
+      distancia = 0.0;
+    });
+  }
+
+  // === Controle da corrida ===
 
   void iniciarCorrida() {
     setState(() {
@@ -36,6 +122,7 @@ class _NovaCorridaState extends State<NovaCorrida> with TickerProviderStateMixin
       cronometro.start();
       _ticker.start();
     });
+    _iniciarMonitoramento();
   }
 
   void pausarCorrida() {
@@ -58,18 +145,20 @@ class _NovaCorridaState extends State<NovaCorrida> with TickerProviderStateMixin
       _ticker.stop();
       emAndamento = false;
     });
+    _pararMonitoramento();
 
     final corridaRegistrada = await Navigator.push(
       context,
       MaterialPageRoute(
         builder: (context) => RegistroCorrida(
           tempo: tempo,
-          distancia: distancia,
+          distancia: distancia, // passa em metros diretamente
         ),
       ),
     );
 
     if (corridaRegistrada == true) {
+      // Retorna true para a tela anterior indicar que salvou com sucesso
       Navigator.pop(context, true);
     }
   }
@@ -83,6 +172,7 @@ class _NovaCorridaState extends State<NovaCorrida> with TickerProviderStateMixin
       distancia = 0.0;
       emAndamento = false;
     });
+    _cancelarMonitoramento();
 
     Navigator.pop(context);
   }
@@ -90,7 +180,13 @@ class _NovaCorridaState extends State<NovaCorrida> with TickerProviderStateMixin
   @override
   void dispose() {
     _ticker.dispose();
+    _subscription?.cancel();
     super.dispose();
+  }
+
+  // === Função de formatação da distância ===
+  String formatarDistancia(double distanciaEmMetros) {
+    return '${distanciaEmMetros.toStringAsFixed(0)} m';
   }
 
   @override
@@ -124,7 +220,7 @@ class _NovaCorridaState extends State<NovaCorrida> with TickerProviderStateMixin
             ),
             const SizedBox(height: 24),
             Text(
-              'Distância: ${distancia.toStringAsFixed(2)} km',
+              'Distância: ${formatarDistancia(distancia)}',
               style: const TextStyle(fontSize: 28),
               textAlign: TextAlign.center,
             ),
