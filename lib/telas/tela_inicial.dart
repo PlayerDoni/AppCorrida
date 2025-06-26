@@ -305,7 +305,6 @@ class _TelaInicialState extends State<TelaInicial> {
               ),
             ),
           ),
-
           Expanded(
             child: listaFiltradaCorridas.isEmpty
                 ? const Center(
