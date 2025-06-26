@@ -6,6 +6,8 @@ import 'package:geosprint/models/corrida.dart';
 import 'package:geosprint/dados/dados_corridas.dart';
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:weather/weather.dart';
+import 'package:geolocator/geolocator.dart';
 
 class TelaInicial extends StatefulWidget {
   const TelaInicial({super.key});
@@ -16,11 +18,47 @@ class TelaInicial extends StatefulWidget {
 
 class _TelaInicialState extends State<TelaInicial> {
   List<Corrida> listaFiltradaCorridas = List.from(listaCorridas);
+  double? temperatura;
+  String? descricaoClima;
+  String? cidade;
 
   @override
   void initState() {
     super.initState();
     _carregarCorridas();
+    _buscarClimaPelaLocalizacao();
+  }
+
+  Future<void> _buscarClimaPelaLocalizacao() async {
+    try {
+      bool servicoHabilitado = await Geolocator.isLocationServiceEnabled();
+      if (!servicoHabilitado) return;
+
+      LocationPermission permissao = await Geolocator.checkPermission();
+      if (permissao == LocationPermission.denied) {
+        permissao = await Geolocator.requestPermission();
+        if (permissao == LocationPermission.denied) return;
+      }
+
+      if (permissao == LocationPermission.deniedForever) return;
+
+      Position posicao = await Geolocator.getCurrentPosition(
+          desiredAccuracy: LocationAccuracy.high);
+
+      WeatherFactory wf = WeatherFactory("58b702a16e0bacb5f09377f82b9b71ae", language: Language.PORTUGUESE);
+      Weather clima = await wf.currentWeatherByLocation(
+        posicao.latitude,
+        posicao.longitude,
+      );
+
+      setState(() {
+        cidade = "Local Atual";
+        temperatura = clima.temperature?.celsius;
+        descricaoClima = clima.weatherDescription;
+      });
+    } catch (e) {
+      print("Erro ao buscar clima/localização: $e");
+    }
   }
 
   void _abrirNovaCorrida() async {
@@ -235,67 +273,104 @@ class _TelaInicialState extends State<TelaInicial> {
           ),
         ],
       ),
-      body: listaFiltradaCorridas.isEmpty
-          ? const Center(
-        child: Text(
-          'Nenhuma corrida registrada ainda',
-          style: TextStyle(fontSize: 18),
-        ),
-      )
-          : ListView.separated(
-        itemCount: listaFiltradaCorridas.length,
-        separatorBuilder: (context, index) => const Divider(
-          thickness: 1,
-          color: Colors.grey,
-          indent: 16,
-          endIndent: 16,
-        ),
-        itemBuilder: (context, index) {
-          final corrida = listaFiltradaCorridas[index];
-          return ListTile(
-            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            title: Text(
-              'Atividade ${index + 1} - ${corrida.tipo}',
-              style: const TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 18,
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Card(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              color: const Color(0xFF38B6FF),
+              elevation: 4,
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(Icons.cloud, color: Colors.white, size: 30),
+                    const SizedBox(width: 10),
+                    Flexible(
+                      child: Text(
+                        cidade == null || temperatura == null
+                            ? 'Buscando clima atual...'
+                            : '$cidade: ${temperatura!.toStringAsFixed(1)}°C • $descricaoClima',
+                        style: const TextStyle(
+                          fontSize: 18,
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
-            subtitle: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const SizedBox(height: 4),
-                Text(
-                  'Data: ${formatarDataHora(corrida.data)}',
-                  style: const TextStyle(fontSize: 16),
-                ),
-                Text(
-                  'Distância: ${corrida.distancia.toStringAsFixed(0)} m',
-                  style: const TextStyle(fontSize: 16),
-                ),
-                Text(
-                  'Descrição: ${corrida.descricao}',
-                  style: const TextStyle(fontSize: 16),
-                ),
-              ],
+          ),
+          Expanded(
+            child: listaFiltradaCorridas.isEmpty
+                ? const Center(
+              child: Text(
+                'Nenhuma corrida registrada ainda',
+                style: TextStyle(fontSize: 18),
+              ),
+            )
+                : ListView.separated(
+              itemCount: listaFiltradaCorridas.length,
+              separatorBuilder: (context, index) => const Divider(
+                thickness: 1,
+                color: Colors.grey,
+                indent: 16,
+                endIndent: 16,
+              ),
+              itemBuilder: (context, index) {
+                final corrida = listaFiltradaCorridas[index];
+                return ListTile(
+                  contentPadding:
+                  const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  title: Text(
+                    'Atividade ${index + 1} - ${corrida.tipo}',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 18,
+                    ),
+                  ),
+                  subtitle: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const SizedBox(height: 4),
+                      Text(
+                        'Data: ${formatarDataHora(corrida.data)}',
+                        style: const TextStyle(fontSize: 16),
+                      ),
+                      Text(
+                        'Distância: ${corrida.distancia.toStringAsFixed(0)} m',
+                        style: const TextStyle(fontSize: 16),
+                      ),
+                      Text(
+                        'Descrição: ${corrida.descricao}',
+                        style: const TextStyle(fontSize: 16),
+                      ),
+                    ],
+                  ),
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.edit, color: Colors.blue),
+                        tooltip: 'Editar Descrição',
+                        onPressed: () => _editarDescricao(index),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.delete, color: Colors.red),
+                        tooltip: 'Excluir Atividade',
+                        onPressed: () => _excluirCorrida(index),
+                      ),
+                    ],
+                  ),
+                );
+              },
             ),
-            trailing: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                IconButton(
-                  icon: const Icon(Icons.edit, color: Colors.blue),
-                  tooltip: 'Editar Descrição',
-                  onPressed: () => _editarDescricao(index),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.delete, color: Colors.red),
-                  tooltip: 'Excluir Atividade',
-                  onPressed: () => _excluirCorrida(index),
-                ),
-              ],
-            ),
-          );
-        },
+          ),
+        ],
       ),
       floatingActionButton: FloatingActionButton(
         backgroundColor: const Color(0xFF38B6FF),
